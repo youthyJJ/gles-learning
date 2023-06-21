@@ -146,20 +146,26 @@ void Renderer::_initRenderer() {
 
 // --------
 
-    static const char *vertexShaderSource = R"vertex(#version 300 es
-            layout (location = 0) in vec3 aPos;
+    static const char *vertexShaderSource = R"vertex(
+#version 300 es
+layout (location = 0) in vec3 aPos;
 
-            void main() {
-                gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-            }
+void main() {
+    gl_Position = vec4(aPos, 1.0);
+}
         )vertex";
 
-    static const char *fragmentShaderSource = R"fragment(#version 300 es
-            out vec4 FragColor;
+    static const char *fragmentShaderSource = R"fragment(
+#version 300 es
+out vec4 FragColor;
 
-            void main() {
-                FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-            }
+uniform vec4 ourColor;
+
+void main() {
+    FragColor = ourColor;
+}
+
+
         )fragment";
 
 
@@ -167,12 +173,10 @@ void Renderer::_initRenderer() {
             0.5f, 0.5f, 0.0f,    // 右上角1
             0.5f, -0.5f, 0.0f,   // 右下角1
             -0.5f, -0.5f, 0.0f,  // 左下角1
-            -0.5f, 0.5f, 0.0f   // 左上角1
     };
 
     int indies[] = {
-            0, 1, 3,
-            1, 2, 3
+            0, 1, 2
     };
 
 
@@ -408,9 +412,15 @@ void Renderer::render() {
     _updateRenderArea();
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(shaderProgram);
+
 
 // ----
+
+    // uniform取值可以在useProgram之前
+    auto ourUniform = glGetUniformLocation(shaderProgram, "ourColor");
+    glUseProgram(shaderProgram);
+    //但是更新必须要在useProgram
+    glUniform4f(ourUniform, 0.0f, 0.5f, 0.0f, 1.0f);
 
     // 启用对应的VAO对象
     glBindVertexArray(VAO);
