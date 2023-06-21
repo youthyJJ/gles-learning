@@ -63,7 +63,6 @@ GLuint vertexShader;
 GLenum fragmentShader;
 GLenum shaderProgram;
 GLuint VAO;
-GLuint EBO;
 
 
 void Renderer::_initRenderer() {
@@ -149,34 +148,34 @@ void Renderer::_initRenderer() {
     static const char *vertexShaderSource = R"vertex(
 #version 300 es
 layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColor;
+
+out vec3 vertexColor;
 
 void main() {
     gl_Position = vec4(aPos, 1.0);
+    vertexColor = aColor;
 }
         )vertex";
 
     static const char *fragmentShaderSource = R"fragment(
 #version 300 es
 out vec4 FragColor;
-
-uniform vec4 ourColor;
+in vec3 vertexColor;
 
 void main() {
-    FragColor = ourColor;
-}
+    FragColor = vec4(vertexColor, 1.0f);
 
+}
 
         )fragment";
 
 
     float vertices[] = {
-            0.5f, 0.5f, 0.0f,    // 右上角1
-            0.5f, -0.5f, 0.0f,   // 右下角1
-            -0.5f, -0.5f, 0.0f,  // 左下角1
-    };
-
-    int indies[] = {
-            0, 1, 2
+            // 位置              // 颜色
+            0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,     // 右下
+            -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,   // 左下
+            0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f    // 顶部
     };
 
 
@@ -225,18 +224,15 @@ void main() {
     // 趁着VBO还没解绑, 创建一个VAO用来描述缓冲进去的数据的结构
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                          (void *) (3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     // 完事之后解绑
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-
-    // 创建一个元素数组, 缓存一下绘制顺序
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indies), indies, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 //------
 
@@ -415,23 +411,14 @@ void Renderer::render() {
 
 
 // ----
-
-    // uniform取值可以在useProgram之前
-    auto ourUniform = glGetUniformLocation(shaderProgram, "ourColor");
     glUseProgram(shaderProgram);
-    //但是更新必须要在useProgram
-    glUniform4f(ourUniform, 0.0f, 0.5f, 0.0f, 1.0f);
 
     // 启用对应的VAO对象
     glBindVertexArray(VAO);
     // 选取索引为0的数据
     glEnableVertexAttribArray(0);
     // 不使用EBO的时候, 可以直接绘制
-    // glDrawArrays(GL_TRIANGLES, 0, 3);
-
-    // 使用EBO了, 这需要启用EBO, 再绘制EBO声明的内容
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
 
     // 完事后解绑
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
