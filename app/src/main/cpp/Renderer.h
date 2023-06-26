@@ -4,6 +4,7 @@
 #include <memory>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
+#include "Shader.h"
 
 struct android_app;
 
@@ -17,10 +18,7 @@ private:
     EGLint width_;
     EGLint height_;
 
-    GLuint glProgram_;
-    GLuint vbo_;
-    GLuint vao_;
-    GLuint ebo_;
+    std::unique_ptr<Shader> shader_;
 
     /*!
      * Performs necessary OpenGL initialization. Customize this if you want to change your EGL

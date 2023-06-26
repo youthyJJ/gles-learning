@@ -7,6 +7,7 @@
 #include <android/imagedecoder.h>
 #include <cassert>
 #include <regex>
+#include "Shader.h"
 
 #include "AndroidOut.h"
 
@@ -57,13 +58,7 @@ static constexpr float kProjectionNearPlane = -1.f;
  */
 static constexpr float kProjectionFarPlane = 1.f;
 
-static bool checkStatus(GLenum handler, bool loggable = true);
-
-GLuint vertexShader;
-GLenum fragmentShader;
-GLenum shaderProgram;
 GLuint VAO;
-
 
 void Renderer::_initRenderer() {
     // Choose your render attributes
@@ -145,75 +140,12 @@ void Renderer::_initRenderer() {
 
 // --------
 
-    static const char *vertexShaderSource = R"vertex(
-#version 300 es
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aColor;
-
-out vec3 vertexColor;
-
-void main() {
-    gl_Position = vec4(aPos, 1.0);
-    vertexColor = aColor;
-}
-        )vertex";
-
-    static const char *fragmentShaderSource = R"fragment(
-#version 300 es
-out vec4 FragColor;
-in vec3 vertexColor;
-
-void main() {
-    FragColor = vec4(vertexColor, 1.0f);
-
-}
-
-        )fragment";
-
-
     float vertices[] = {
             // 位置              // 颜色
             0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,     // 右下
             -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,   // 左下
             0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f    // 顶部
     };
-
-
-    // 编译顶点着色器
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
-    glCompileShader(vertexShader);
-    if (!checkStatus(vertexShader)) {
-        glClearColor(ERROR_COLOR);
-        return;
-    }
-
-    // 编译片元着色器
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
-    glCompileShader(fragmentShader);
-    if (!checkStatus(fragmentShader)) {
-        glDeleteShader(vertexShader);
-        glClearColor(ERROR_COLOR);
-        return;
-    }
-
-    // 创建着色器程序, 链接着色器
-    shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    if (!checkStatus(shaderProgram)) {
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
-        glClearColor(ERROR_COLOR);
-        return;
-    }
-
-    // 程序创建好了之后, 就不再需要shader了
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
 
     // 创建一个VBO,用来将CPU中的数据缓冲到GPU中
     GLuint vbo;
@@ -234,6 +166,19 @@ void main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    auto assetManager = app_->activity->assetManager;
+    shader_ = std::unique_ptr<Shader>(
+            Shader::loadShader(
+                    assetManager,
+                    "shader/vertex.glsl",
+                    "shader/fragment.glsl"
+            )
+    );
+    if (!shader_.get()) {
+        glClearColor(ERROR_COLOR);
+        return;
+    }
+
 //------
 
     glClearColor(CORNFLOWER_BLUE);
@@ -242,48 +187,6 @@ void main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-}
-
-static bool checkStatus(GLenum handler, bool loggable) {
-    int success;
-
-    bool isShader = glIsShader(handler) == GL_TRUE;
-    bool isProgram = glIsProgram(handler) == GL_TRUE;
-    if (isShader) {
-        glGetShaderiv(handler, GL_COMPILE_STATUS, &success);
-    }
-    if (isProgram) {
-        glGetProgramiv(handler, GL_LINK_STATUS, &success);
-    }
-
-    if (!success && loggable) {
-        if (isShader) {
-            int length;
-            int typeCode;
-            glGetShaderiv(handler, GL_SHADER_TYPE, &typeCode);
-
-            auto shaderType = "unknown";
-            if (typeCode == GL_VERTEX_SHADER) shaderType = "GL_VERTEX_SHADER";
-            if (typeCode == GL_FRAGMENT_SHADER) shaderType = "GL_FRAGMENT_SHADER";
-
-            glGetShaderiv(handler, GL_INFO_LOG_LENGTH, &length);
-            auto log = new GLchar[length];
-            glGetShaderInfoLog(handler, length, nullptr, log);
-            warn << "Compile shader(" << shaderType << ") failure: " << log << std::endl;
-            delete[] log;
-        }
-
-        if (isProgram) {
-            int length;
-            glGetProgramiv(handler, GL_INFO_LOG_LENGTH, &length);
-            auto log = new GLchar[length];
-            glGetProgramInfoLog(handler, length, nullptr, log);
-            warn << "Program link failure: " << log << std::endl;
-            delete[] log;
-        }
-    }
-
-    return success;
 }
 
 void Renderer::_updateRenderArea() {
@@ -408,11 +311,9 @@ void Renderer::render() {
     _updateRenderArea();
     glClear(GL_COLOR_BUFFER_BIT);
 
-
-
 // ----
-    glUseProgram(shaderProgram);
 
+    shader_.get()->activate();
     // 启用对应的VAO对象
     glBindVertexArray(VAO);
     // 选取索引为0的数据
@@ -423,8 +324,8 @@ void Renderer::render() {
     // 完事后解绑
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-    glUseProgram(0);
 
+    shader_.get()->deactivate();
 // ----
 
     eglSwapBuffers(display_, surface_);

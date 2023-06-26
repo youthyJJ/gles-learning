@@ -11,6 +11,8 @@ add_library(egl SHARED
         main.cpp
         AndroidOut.cpp
         Renderer.cpp
+        Shader.h
+        Shader.cpp
         )
 
 # Searches for a package provided by the game activity dependency
