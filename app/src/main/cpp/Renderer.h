@@ -5,6 +5,7 @@
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include "Shader.h"
+#include "Image.h"
 
 struct android_app;
 
@@ -19,6 +20,8 @@ private:
     EGLint height_;
 
     std::unique_ptr<Shader> shader_;
+    std::shared_ptr<Image> image0_;
+    std::shared_ptr<Image> image1_;
 
     /*!
      * Performs necessary OpenGL initialization. Customize this if you want to change your EGL

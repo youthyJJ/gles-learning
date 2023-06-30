@@ -8,6 +8,7 @@
 #include <cassert>
 #include <regex>
 #include "Shader.h"
+#include "Image.h"
 
 #include "AndroidOut.h"
 
@@ -59,6 +60,7 @@ static constexpr float kProjectionNearPlane = -1.f;
 static constexpr float kProjectionFarPlane = 1.f;
 
 GLuint VAO;
+GLuint EBO;
 
 void Renderer::_initRenderer() {
     // Choose your render attributes
@@ -141,10 +143,16 @@ void Renderer::_initRenderer() {
 // --------
 
     float vertices[] = {
-            // 位置              // 颜色
-            0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,     // 右下
-            -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,   // 左下
-            0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f    // 顶部
+            //     ---- 位置 ----       ---- 颜色 ----     - 纹理坐标 -
+            0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,   // 右上
+            -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,   // 右下
+            -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,   // 左下
+            0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f    // 左上
+    };
+
+    int indies[] = {
+            0, 1, 2,
+            0, 2, 3
     };
 
     // 创建一个VBO,用来将CPU中的数据缓冲到GPU中
@@ -156,15 +164,52 @@ void Renderer::_initRenderer() {
     // 趁着VBO还没解绑, 创建一个VAO用来描述缓冲进去的数据的结构
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                          (void *) (3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+
+    // 定义位置属性, index为0
+    auto vertexPosIndex = 0;
+    glVertexAttribPointer(
+            vertexPosIndex,
+            3,
+            GL_FLOAT,
+            GL_FALSE,
+            8 * sizeof(float),
+            (void *) 0
+    );
+    glEnableVertexAttribArray(vertexPosIndex);
+
+    // 定义颜色属性, index为1
+    auto vertexColorIndex = 1;
+    glVertexAttribPointer(
+            vertexColorIndex,
+            3,
+            GL_FLOAT,
+            GL_FALSE,
+            8 * sizeof(float),
+            (void *) (3 * sizeof(float))
+    );
+    glEnableVertexAttribArray(vertexColorIndex);
+
+    // 定义材质坐标属性, index为2
+    auto textureCorIndex = 2;
+    glVertexAttribPointer(
+            textureCorIndex,
+            2,
+            GL_FLOAT,
+            GL_FALSE,
+            8 * sizeof(float),
+            (void *) (6 * sizeof(float))
+    );
+    glEnableVertexAttribArray(textureCorIndex);
 
     // 完事之后解绑
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // 缓冲EBO数据
+    glGenBuffers(1, &EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indies, indies, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     auto assetManager = app_->activity->assetManager;
     shader_ = std::unique_ptr<Shader>(
@@ -178,6 +223,20 @@ void Renderer::_initRenderer() {
         glClearColor(ERROR_COLOR);
         return;
     }
+
+    image0_ = Image::load(assetManager, "picture/wall.jpg");
+    if (!image0_.get()) {
+        glClearColor(ERROR_COLOR);
+        return;
+    }
+    shader_->setInt("texture0", 0);
+
+    image1_ = Image::load(assetManager, "picture/awesomeface.png");
+    if (!image1_.get()) {
+        glClearColor(ERROR_COLOR);
+        return;
+    }
+    shader_->setInt("texture1", 1);
 
 //------
 
@@ -314,12 +373,25 @@ void Renderer::render() {
 // ----
 
     shader_.get()->activate();
+
+    // GL_TEXTURE0 默认激活
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, image0_->texture_);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, image1_->texture_);
+
     // 启用对应的VAO对象
     glBindVertexArray(VAO);
     // 选取索引为0的数据
     glEnableVertexAttribArray(0);
     // 不使用EBO的时候, 可以直接绘制
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    // glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    // 使用EBO了, 这需要启用EBO, 再绘制EBO声明的内容
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     // 完事后解绑
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

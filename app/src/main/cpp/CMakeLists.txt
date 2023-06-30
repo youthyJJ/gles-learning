@@ -13,6 +13,8 @@ add_library(egl SHARED
         Renderer.cpp
         Shader.h
         Shader.cpp
+        Image.h
+        Image.cpp
         )
 
 # Searches for a package provided by the game activity dependency

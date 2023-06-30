@@ -140,3 +140,10 @@ void Shader::activate() const {
 void Shader::deactivate() const {
     glUseProgram(0);
 }
+
+void Shader::setInt(std::string name, GLint value) {
+    activate();
+    auto location = glGetUniformLocation(program_, name.c_str());
+    glUniform1i(location, value);
+    deactivate();
+}

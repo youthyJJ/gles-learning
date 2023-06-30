@@ -38,6 +38,8 @@ public:
 
     void activate() const;
 
+    void setInt(std::string name, int value);
+
     void deactivate() const;
 
     inline ~Shader() {
